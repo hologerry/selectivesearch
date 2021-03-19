@@ -138,7 +138,7 @@ def _calc_texture_hist(img):
         # calculate histogram for each orientation and concatenate them all
         # and join to the result
         hist = numpy.concatenate(
-            [hist] + [numpy.histogram(fd, BINS, (0.0, 1.0))[0]])
+            [hist] + [numpy.histogram(fd, BINS, (0.0, 255.0))[0]])  # there is a bug https://github.com/AlpacaDB/selectivesearch/issues/30
 
     # L1 Normalize
     hist = hist / len(img)
@@ -177,21 +177,21 @@ def _extract_regions(img):
     # pass 2: calculate texture gradient
     tex_grad = _calc_texture_gradient(img)
 
-    # pass 3: calculate colour histogram of each region
+    # pass 3: calculate colour, texture histogram of each region
     for k, v in list(R.items()):
-
+        # k is the region label
         # colour histogram
         masked_pixels = hsv[:, :, :][img[:, :, 3] == k]
-        R[k]["size"] = len(masked_pixels / 4)
-        R[k]["hist_c"] = _calc_colour_hist(masked_pixels)
+        R[k]["size"] = len(masked_pixels / 4)  # number of pixels in the region,  why /4 ?, in the repo, the question is not answered
+        R[k]["hist_c"] = _calc_colour_hist(masked_pixels)  # calculated on HSV space
 
         # texture histogram
-        R[k]["hist_t"] = _calc_texture_hist(tex_grad[:, :][img[:, :, 3] == k])
+        R[k]["hist_t"] = _calc_texture_hist(tex_grad[:, :][img[:, :, 3] == k])  # calculated on RGB space
 
     return R
 
 
-def _extract_neighbours(regions):
+def _extract_neighbors(regions):
 
     def intersect(a, b):
         if (a["min_x"] < b["min_x"] < a["max_x"]
@@ -206,13 +206,13 @@ def _extract_neighbours(regions):
         return False
 
     R = list(regions.items())
-    neighbours = []
+    neighbors = []
     for cur, a in enumerate(R[:-1]):
         for b in R[cur + 1:]:
             if intersect(a[1], b[1]):
-                neighbours.append((a, b))
+                neighbors.append((a, b))
 
-    return neighbours
+    return neighbors
 
 
 def _merge_regions(r1, r2):
@@ -232,8 +232,7 @@ def _merge_regions(r1, r2):
     return rt
 
 
-def selective_search(
-        im_orig, scale=1.0, sigma=0.8, min_size=50):
+def selective_search(im_orig, scale=1.0, sigma=0.8, min_size=50):
     '''Selective Search
 
     Parameters
@@ -265,7 +264,7 @@ def selective_search(
 
     # load image and get smallest regions
     # region label is stored in the 4th value of each pixel [r,g,b,(region)]
-    img = _generate_segments(im_orig, scale, sigma, min_size)
+    img = _generate_segments(im_orig, scale, sigma, min_size)  # img first 3 channel values are in [0, 255]
 
     if img is None:
         return None, {}
@@ -273,12 +272,12 @@ def selective_search(
     imsize = img.shape[0] * img.shape[1]
     R = _extract_regions(img)
 
-    # extract neighbouring information
-    neighbours = _extract_neighbours(R)
+    # extract neighboring information
+    neighbors = _extract_neighbors(R)
 
     # calculate initial similarities
     S = {}
-    for (ai, ar), (bi, br) in neighbours:
+    for (ai, ar), (bi, br) in neighbors:
         S[(ai, bi)] = _calc_sim(ar, br, imsize)
 
     # hierarchal search

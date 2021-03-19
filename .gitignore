@@ -58,3 +58,5 @@ target/
 
 # VS code
 .vscode
+*.png
+*.jpg
